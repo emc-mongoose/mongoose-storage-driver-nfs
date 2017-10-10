@@ -1,0 +1,188 @@
+description = "Mongoose NFS storage driver"
+
+buildscript {
+	repositories {
+		mavenCentral()
+	}
+}
+
+apply plugin: "java"
+apply plugin: "maven"
+apply plugin: "signing"
+
+group = "com.github.emc-mongoose"
+version = "1.0.0"
+
+ext {
+	depVersion = [
+		javaCommons: "[1.0.8,)",
+		mongoose: "[4.0.0-alpha1,)",
+		nfsClient: "[1.0.3,)",
+	]
+
+	setClassPath = {
+		configurations -> [
+			configurations.runtime
+				.collect { file ->
+				// it's 3rd party if jar file name doesn't contain the root project name
+				if(-1 == file.name.indexOf(rootProject.name)) {
+					["lib", file.name].join(File.separator)
+				} else {
+					file.name
+				}
+			}
+			.join(" "),
+		]
+			.join(" ")
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	compile(
+		"com.github.akurilov:java-commons:${depVersion.javaCommons}",
+		"com.github.emc-mongoose:mongoose-storage-driver-nio:${depVersion.mongoose}",
+		"com.emc.ecs:nfs-client:${depVersion.nfsClient}",
+	)
+}
+
+task wrapper(type: Wrapper) {
+	gradleVersion = "3.5"
+}
+
+test {
+	/*
+	systemProperty "com.sun.management.jmxremote", "true"
+	systemProperty "com.sun.management.jmxremote.port", "9010"
+	systemProperty "com.sun.management.jmxremote.local.only", "false"
+	systemProperty "com.sun.management.jmxremote.authenticate", "false"
+	systemProperty "com.sun.management.jmxremote.ssl", "false"
+	*/
+	testLogging {
+		events "passed", "skipped", "failed", "standardOut"
+		showExceptions = true
+		showStandardStreams = true
+	}
+}
+
+jar {
+	archiveName "$project.name.$extension"
+	manifest {
+		attributes(
+			"Class-Path": setClassPath(configurations),
+			"Implementation-Version": version,
+			"Implementation-Title": "$name"
+		)
+	}
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+	classifier = "sources"
+	archiveName "$project.name-$classifier.$extension"
+	from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+	classifier = "javadoc"
+	archiveName "$project.name-$classifier.$extension"
+	from javadoc.destinationDir
+}
+
+artifacts {
+	archives jar
+	archives sourcesJar
+	archives javadocJar
+}
+
+def ossrhUsername = project.hasProperty("ossrhUsername") ?
+	project.property("ossrhUsername") : null
+def ossrhPassword = project.hasProperty("ossrhPassword") ?
+	project.property("ossrhPassword") : null
+
+signing {
+	required {
+		gradle.taskGraph.hasTask("uploadArchives")
+	}
+	sign configurations.archives
+}
+
+// see http://central.sonatype.org/pages/gradle.html for details
+uploadArchives {
+
+	// prevent the execution for empty (not leaf) subprojects and tests packages
+	if(project.name.contains("tests")) {
+		return
+	}
+
+	repositories {
+		mavenDeployer {
+			beforeDeployment {
+				MavenDeployment deployment -> signing.signPom(deployment)
+			}
+
+			repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+				authentication(userName: ossrhUsername, password: ossrhPassword)
+			}
+
+			snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+				authentication(userName: ossrhUsername, password: ossrhPassword)
+			}
+
+			pom {
+
+				groupId = rootProject.group
+				name = "nagaina"
+				artifactId = name
+
+				project {
+					description = rootProject.description
+
+					url "https://github.com/emc-mongoose/mongoose-storage-driver-nfs/wiki"
+
+					scm {
+						connection "https://github.com/emc-mongoose/mongoose-storage-driver-nfs.git"
+						developerConnection "https://github.com/emc-mongoose/mongoose-storage-driver-nfs.git"
+						url "https://github.com/emc-mongoose/mongoose-storage-driver-nfs.git"
+					}
+
+					licenses {
+						license {
+							name "The MIT License (MIT)"
+							url "https://github.com/emc-mongoose/mongoose-storage-driver-nfs/wiki/License"
+						}
+					}
+
+					developers {
+						developer {
+							id "akurilov"
+							name "Andrey Kurilov"
+							email "akurilov123@gmail.com"
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+task dist(type: Tar) {
+	group = "distribution"
+	description = "Generate Nagaina distribution tarball"
+	dependsOn tasks.withType(Jar)
+	baseName = rootProject.name
+	compression = Compression.GZIP
+	destinationDir = new File("build", "dist")
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	into("$baseName-$rootProject.version") {
+		into("config") {
+			from { "config" }
+		}
+		into("lib") {
+			from configurations.runtime
+		}
+		from jar.outputs.files
+	}
+}
