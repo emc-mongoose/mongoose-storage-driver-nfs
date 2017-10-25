@@ -1,4 +1,4 @@
-description = "Mongoose NFS storage driver"
+description = "NFS storage driver for Mongoose"
 
 buildscript {
 	repositories {
@@ -11,46 +11,64 @@ apply plugin: "maven"
 apply plugin: "signing"
 
 group = "com.github.emc-mongoose"
-version = "1.0.0"
+version = "0.1.0"
 
-ext {
-	depVersion = [
-		javaCommons: "[1.0.8,)",
-		mongoose: "[4.0.0-alpha1,)",
-		nfsClient: "[1.0.3,)",
-	]
-
-	setClassPath = {
-		configurations -> [
-			configurations.runtime
-				.collect { file ->
-				// it's 3rd party if jar file name doesn't contain the root project name
-				if(-1 == file.name.indexOf(rootProject.name)) {
-					["lib", file.name].join(File.separator)
-				} else {
-					file.name
-				}
-			}
-			.join(" "),
-		]
-			.join(" ")
-	}
+tasks.withType(JavaCompile) {
+	sourceCompatibility = JavaVersion.VERSION_1_8
+	targetCompatibility = JavaVersion.VERSION_1_8
 }
+
+task("create-dirs").doLast(
+	{
+		sourceSets*.java.srcDirs*.each { it.mkdirs() }
+		sourceSets*.resources.srcDirs*.each { it.mkdirs() }
+	}
+)
 
 repositories {
 	mavenCentral()
 }
 
-dependencies {
-	compile(
-		"com.github.akurilov:java-commons:${depVersion.javaCommons}",
-		"com.github.emc-mongoose:mongoose-storage-driver-nio:${depVersion.mongoose}",
-		"com.emc.ecs:nfs-client:${depVersion.nfsClient}",
-	)
+ext {
+	depVersion = [
+		commonsJava: "[1.1.0,)",
+		log4j: "2.8.2",
+		mongoose: "[4.0.0-alpha5,)",
+		nfsClient: "[1.0.3,)",
+	]
 }
 
-task wrapper(type: Wrapper) {
-	gradleVersion = "3.5"
+configurations {
+	core
+	compileOnly {
+		extendsFrom core
+	}
+}
+
+dependencies {
+
+	core(
+		"com.github.emc-mongoose:mongoose-storage-driver-nio:${depVersion.mongoose}",
+		"com.github.emc-mongoose:mongoose-ui:${depVersion.mongoose}",
+	)
+
+	compile(
+		"com.github.akurilov:java-commons:${depVersion.commonsJava}",
+		"org.apache.logging.log4j:log4j-api:${depVersion.log4j}",
+		"com.emc.ecs:nfs-client:${depVersion.nfsClient}",
+	)
+
+	testCompile(
+		"junit:junit:[4,)",
+		"org.apache.logging.log4j:log4j-api:${depVersion.log4j}",
+		"com.github.emc-mongoose:mongoose-api-model:${depVersion.mongoose}",
+	)
+
+	testRuntime(
+		"org.apache.logging.log4j:log4j-core:${depVersion.log4j}",
+		"commons-io:commons-io:2.5",
+		"com.github.emc-mongoose:mongoose-storage-driver-nio:${depVersion.mongoose}",
+	)
 }
 
 test {
@@ -68,11 +86,23 @@ test {
 	}
 }
 
+def getCoreClassPath() {
+	return configurations.core.dependencies
+		.collect { dep -> ["..", (dep.name + ".jar")].join(File.separator) }
+		.join(" ")
+}
+
+static def getClassPath(final configuration) {
+	return configuration
+		.collect { file -> ["..", "lib", file.name].join(File.separator) }
+		.join(" ")
+}
+
 jar {
 	archiveName "$project.name.$extension"
 	manifest {
 		attributes(
-			"Class-Path": setClassPath(configurations),
+			"Class-Path": getCoreClassPath() + " " + getClassPath(configurations.runtime),
 			"Implementation-Version": version,
 			"Implementation-Title": "$name"
 		)
@@ -134,7 +164,7 @@ uploadArchives {
 			pom {
 
 				groupId = rootProject.group
-				name = "nagaina"
+				name = "mongoose-storage-driver-nfs"
 				artifactId = name
 
 				project {
@@ -165,24 +195,5 @@ uploadArchives {
 				}
 			}
 		}
-	}
-}
-
-task dist(type: Tar) {
-	group = "distribution"
-	description = "Generate Nagaina distribution tarball"
-	dependsOn tasks.withType(Jar)
-	baseName = rootProject.name
-	compression = Compression.GZIP
-	destinationDir = new File("build", "dist")
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-	into("$baseName-$rootProject.version") {
-		into("config") {
-			from { "config" }
-		}
-		into("lib") {
-			from configurations.runtime
-		}
-		from jar.outputs.files
 	}
 }
