@@ -1,6 +1,6 @@
 ARG MONGOOSE_NFS_DRIVER_VERSION
 
-FROM emcmongoose/mongoose-storage-driver-nfs:${MONGOOSE_NFS_DRIVER_VERSION}
+FROM emcmongoose/mongoose-storage-driver-service-base:${MONGOOSE_NFS_DRIVER_VERSION}
 
 EXPOSE 1099
 
