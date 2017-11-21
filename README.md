@@ -56,7 +56,7 @@ docker run \
     --entrypoint mongoose \
     emcmongoose/mongoose-storage-driver-nfs \
     -jar /opt/mongoose/mongoose.jar \
-    --storage-type=fs \
+    --storage-type=nfs \
     ...
 ```
 
