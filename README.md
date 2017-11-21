@@ -8,9 +8,7 @@ driver
 
 # Introduction
 
-The storage driver implementation may be used to perform file
-non-blocking I/O. The storage driver extends the Mongoose's
-[Abstract NIO Storage Driver](https://github.com/emc-mongoose/mongoose-base/wiki/v3.6-Extensions#22-nio-storage-driver).
+The storage driver extends the Mongoose's [Abstract NIO Storage Driver](https://github.com/emc-mongoose/mongoose-base/wiki/v3.6-Extensions#22-nio-storage-driver).
 Also it uses [EMC ECS NFS-client library](https://github.com/EMCECS/nfs-client-java).
 
 # Features
